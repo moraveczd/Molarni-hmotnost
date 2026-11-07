@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kalkulačka molární hmotnosti</title>
+    <!-- Tailwind CSS pro moderní a přehledný vzhled -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js pro vizualizaci procentuálního zastoupení prvků -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+        <!-- Hlavička -->
+        <div class="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 sm:p-8 text-white">
+            <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">Kalkulačka molární hmotnosti</h1>
+            <p class="mt-2 text-blue-100 text-sm sm:text-base">
+                Zadejte chemický vzorec včetně solvátů/hydrátů a hranatých závorek (např. <code>FeCl3.6H2O</code>, <code>[Co(NH3)5Cl]Cl2</code>).
+            </p>
+        </div>
+
+        <!-- Formulář -->
+        <div class="p-6 sm:p-8 border-b border-slate-100 bg-slate-50/50">
+            <form id="calc-form" onsubmit="calculateMolarMass(event)" class="space-y-4">
+                <div>
+                    <label for="formula-input" class="block text-sm font-semibold text-slate-700 mb-1">Chemický vzorec</label>
+                    <div class="relative rounded-md shadow-sm">
+                        <input type="text" id="formula-input" required
+                            class="w-full px-4 py-3 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-mono placeholder-slate-400 outline-none transition"
+                            placeholder="Zadejte vzorec, např. Co(NO3)2 nebo FeCl3.6H2O"
+                            value="[Co(NH3)5Cl]Cl2">
+                        <button type="submit" 
+                            class="mt-3 sm:mt-0 sm:absolute sm:right-2 sm:top-2 sm:bottom-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm transition-colors duration-150 flex items-center justify-center">
+                            Spočítat
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Rychlé příklady -->
+                <div class="flex flex-wrap gap-2 items-center text-xs text-slate-500">
+                    <span class="font-medium">Vyzkoušejte příklady:</span>
+                    <button type="button" onclick="setFormula('H2O')" class="px-2 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100 transition">H2O</button>
+                    <button type="button" onclick="setFormula('FeCl3.6H2O')" class="px-2 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100 transition">FeCl3.6H2O</button>
+                    <button type="button" onclick="setFormula('Co(NO3)2')" class="px-2 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100 transition">Co(NO3)2</button>
+                    <button type="button" onclick="setFormula('[Co(NH3)5Cl]Cl2')" class="px-2 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100 transition">[Co(NH3)5Cl]Cl2</button>
+                    <button type="button" onclick="setFormula('K4[Fe(CN)6]')" class="px-2 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100 transition">K4[Fe(CN)6]</button>
+                    <button type="button" onclick="setFormula('CuSO4.5H2O')" class="px-2 py-1 bg-white border border-slate-200 rounded hover:bg-slate-100 transition">CuSO4.5H2O</button>
+                </div>
+            </form>
+            
+            <!-- Chybové hlášení -->
+            <div id="error-message" class="hidden mt-4 p-4 bg-red-50 border-l-4 border-red-500 text-red-700 rounded text-sm"></div>
+        </div>
+
+        <!-- Výsledky -->
+        <div id="results-container" class="p-6 sm:p-8 hidden">
+            <!-- Hlavní souhrn -->
+            <div class="mb-8 p-6 bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-xl shadow-md flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div>
+                    <span class="text-xs uppercase tracking-wider text-indigo-300 font-semibold">Celková molární hmotnost</span>
+                    <h2 id="total-mass-display" class="text-3xl sm:text-4xl font-extrabold text-white mt-1">0.000 g/mol</h2>
+                    <p id="formatted-formula" class="text-slate-400 font-mono text-sm mt-1"></p>
+                </div>
+                <div class="text-center sm:text-right border-t sm:border-t-0 border-slate-800 pt-3 sm:pt-0 w-full sm:w-auto">
+                    <span id="element-count-badge" class="inline-block px-3 py-1 bg-indigo-500/20 text-indigo-300 rounded-full text-xs font-semibold">
+                        0 prvků
+                    </span>
+                </div>
+            </div>
+
+            <!-- Mřížka s detailní tabulkou a grafem -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- Tabulka rozpadu prvků -->
+                <div class="lg:col-span-7">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4">Procentuální složení</h3>
+                    <div class="overflow-x-auto rounded-lg border border-slate-200">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 text-xs font-semibold uppercase border-b border-slate-200">
+                                    <th class="py-3 px-4">Prvek</th>
+                                    <th class="py-3 px-4 text-center">Počet atomů</th>
+                                    <th class="py-3 px-4 text-right">Mol. hmotnost</th>
+                                    <th class="py-3 px-4 text-right">Hmotnost %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="elements-table-body" class="divide-y divide-slate-100 text-sm">
+                                <!-- Zde budou vloženy řádky prvků -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Graf procentuálního zastoupení -->
+                <div class="lg:col-span-5 flex flex-col items-center justify-center bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <h3 class="text-sm font-semibold text-slate-600 mb-2">Hmotnostní podíl</h3>
+                    <div class="relative w-full max-w-[260px] aspect-square">
+                        <canvas id="composition-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS Skript -->
+    <script>
+        /**
+         * Databáze všech 118 prvků s přesnými atomovými hmotnostmi (IUPAC)
+         */
+        const ELEMENTS = {
+            "H": { name: "Vodík", mass: 1.008 },
+            "He": { name: "Helium", mass: 4.0026 },
+            "Li": { name: "Lithium", mass: 6.94 },
+            "Be": { name: "Beryllium", mass: 9.0122 },
+            "B": { name: "Bór", mass: 10.81 },
+            "C": { name: "Uhlík", mass: 12.011 },
+            "N": { name: "Dusík", mass: 14.007 },
+            "O": { name: "Kyslík", mass: 15.999 },
+            "F": { name: "Fluor", mass: 18.998 },
+            "Ne": { name: "Neon", mass: 20.180 },
+            "Na": { name: "Sodík", mass: 22.990 },
+            "Mg": { name: "Hořčík", mass: 24.305 },
+            "Al": { name: "Hliník", mass: 26.982 },
+            "Si": { name: "Křemík", mass: 28.085 },
+            "P": { name: "Fosfor", mass: 30.974 },
+            "S": { name: "Síra", mass: 32.06 },
+            "Cl": { name: "Chlor", mass: 35.45 },
+            "Ar": { name: "Argon", mass: 39.948 },
+            "K": { name: "Draslík", mass: 39.098 },
+            "Ca": { name: "Vápník", mass: 40.078 },
+            "Sc": { name: "Skandium", mass: 44.956 },
+            "Ti": { name: "Titan", mass: 47.867 },
+            "V": { name: "Vanad", mass: 50.942 },
+            "Cr": { name: "Chrom", mass: 51.996 },
+            "Mn": { name: "Mangan", mass: 54.938 },
+            "Fe": { name: "Železo", mass: 55.845 },
+            "Co": { name: "Kobalt", mass: 58.933 },
+            "Ni": { name: "Nikl", mass: 58.693 },
+            "Cu": { name: "Měď", mass: 63.546 },
+            "Zn": { name: "Zinek", mass: 65.38 },
+            "Ga": { name: "Gallium", mass: 69.723 },
+            "Ge": { name: "Germanium", mass: 72.630 },
+            "As": { name: "Arsen", mass: 74.922 },
+            "Se": { name: "Selen", mass: 78.971 },
+            "Br": { name: "Brom", mass: 79.904 },
+            "Kr": { name: "Krypton", mass: 83.798 },
+            "Rb": { name: "Rubidium", mass: 85.468 },
+            "Sr": { name: "Stroncium", mass: 87.62 },
+            "Y": { name: "Yttrium", mass: 88.906 },
+            "Zr": { name: "Zirkonium", mass: 91.224 },
+            "Nb": { name: "Niob", mass: 92.906 },
+            "Mo": { name: "Molybden", mass: 95.95 },
+            "Tc": { name: "Technetium", mass: 98 },
+            "Ru": { name: "Ruthenium", mass: 101.07 },
+            "Rh": { name: "Rhodium", mass: 102.91 },
+            "Pd": { name: "Palladium", mass: 106.42 },
+            "Ag": { name: "Stříbro", mass: 107.87 },
+            "Cd": { name: "Kadmium", mass: 112.41 },
+            "In": { name: "Indium", mass: 114.82 },
+            "Sn": { name: "Cín", mass: 118.71 },
+            "Sb": { name: "Antimon", mass: 121.76 },
+            "Te": { name: "Tellur", mass: 127.60 },
+            "I": { name: "Jód", mass: 126.90 },
+            "Xe": { name: "Xenon", mass: 131.29 },
+            "Cs": { name: "Cezium", mass: 132.91 },
+            "Ba": { name: "Barium", mass: 137.33 },
+            "La": { name: "Lantan", mass: 138.91 },
+            "Ce": { name: "Cer", mass: 140.12 },
+            "Pr": { name: "Praseodym", mass: 140.91 },
+            "Nd": { name: "Neodym", mass: 144.24 },
+            "Pm": { name: "Promethium", mass: 145 },
+            "Sm": { name: "Samarium", mass: 150.36 },
+            "Eu": { name: "Europium", mass: 151.96 },
+            "Gd": { name: "Gadolinium", mass: 157.25 },
+            "Tb": { name: "Terbium", mass: 158.93 },
+            "Dy": { name: "Dysprosium", mass: 162.50 },
+            "Ho": { name: "Holmium", mass: 164.93 },
+            "Er": { name: "Erbium", mass: 167.26 },
+            "Tm": { name: "Thulium", mass: 168.93 },
+            "Yb": { name: "Ytterbium", mass: 173.05 },
+            "Lu": { name: "Lutecium", mass: 174.97 },
+            "Hf": { name: "Hafnium", mass: 178.49 },
+            "Ta": { name: "Tantal", mass: 180.95 },
+            "W": { name: "Volfram", mass: 183.84 },
+            "Re": { name: "Rhenium", mass: 186.21 },
+            "Os": { name: "Osmium", mass: 190.23 },
+            "Ir": { name: "Iridium", mass: 192.22 },
+            "Pt": { name: "Platina", mass: 195.08 },
+            "Au": { name: "Zlato", mass: 196.97 },
+            "Hg": { name: "Rtuť", mass: 200.59 },
+            "Tl": { name: "Thallium", mass: 204.38 },
+            "Pb": { name: "Olovo", mass: 207.2 },
+            "Bi": { name: "Bismut", mass: 208.98 },
+            "Po": { name: "Polonium", mass: 209 },
+            "At": { name: "Astat", mass: 210 },
+            "Rn": { name: "Radon", mass: 222 },
+            "Fr": { name: "Francium", mass: 223 },
+            "Ra": { name: "Radium", mass: 226 },
+            "Ac": { name: "Aktinium", mass: 227 },
+            "Th": { name: "Thorium", mass: 232.04 },
+            "Pa": { name: "Protaktinium", mass: 231.04 },
+            "U": { name: "Uran", mass: 238.03 },
+            "Np": { name: "Neptunium", mass: 237 },
+            "Pu": { name: "Plutonium", mass: 244 },
+            "Am": { name: "Americium", mass: 243 },
+            "Cm": { name: "Curium", mass: 247 },
+            "Bk": { name: "Berkelium", mass: 247 },
+            "Cf": { name: "Kalifornium", mass: 251 },
+            "Es": { name: "Einsteinium", mass: 252 },
+            "Fm": { name: "Fermium", mass: 257 },
+            "Md": { name: "Mendelevium", mass: 258 },
+            "No": { name: "Nobelium", mass: 259 },
+            "Lr": { name: "Lawrencium", mass: 266 },
+            "Rf": { name: "Rutherfordium", mass: 267 },
+            "Db": { name: "Dubnium", mass: 268 },
+            "Sg": { name: "Seaborgium", mass: 269 },
+            "Bh": { name: "Bohrium", mass: 270 },
+            "Hs": { name: "Hassium", mass: 277 },
+            "Mt": { name: "Meitnerium", mass: 278 },
+            "Ds": { name: "Darmstadtium", mass: 281 },
+            "Rg": { name: "Roentgenium", mass: 282 },
+            "Cn": { name: "Kopernicium", mass: 285 },
+            "Nh": { name: "Nihonium", mass: 286 },
+            "Fl": { name: "Flerovium", mass: 289 },
+            "Mc": { name: "Moscovium", mass: 290 },
+            "Lv": { name: "Livermorium", mass: 293 },
+            "Ts": { name: "Tennessin", mass: 294 },
+            "Og": { name: "Oganesson", mass: 294 }
+        };
+
+        /**
+         * Modul pro parsování chemických vzorců
+         */
+        class ChemicalParser {
+            /**
+             * Hlavní metoda pro zpracování vzorce (zvládá i solváty oddělené tečkou '*')
+             */
+            static parse(formula) {
+                // Vyčištění vzorce (odstranění mezer, sjednocení typů teček a závorek)
+                let cleaned = formula.replace(/\s+/g, '')
+                                     .replace(/·/g, '.')
+                                     .replace(/\{/g, '(').replace(/\}/g, ')')
+                                     .replace(/\[/g, '(').replace(/\]/g, ')');
+
+                if (!cleaned) throw new Error("Vzorec nesmí být prázdný.");
+
+                // Rozdělení na jednotlivé části solvátů (např. FeCl3.6H2O -> ["FeCl3", "6H2O"])
+                const parts = cleaned.split('.');
+                const totalCounts = {};
+
+                for (let part of parts) {
+                    if (!part) continue;
+
+                    // Detekce koeficientu na začátku solvátu (např. 6H2O -> 6 * H2O)
+                    let multiplier = 1;
+                    const coefMatch = part.match(/^(\d+)(.*)/);
+                    if (coefMatch) {
+                        multiplier = parseInt(coefMatch[1], 10);
+                        part = coefMatch[2];
+                    }
+
+                    const subCounts = this.parseSubFormula(part);
+                    for (const [elem, count] of Object.entries(subCounts)) {
+                        totalCounts[elem] = (totalCounts[elem] || 0) + (count * multiplier);
+                    }
+                }
+
+                return totalCounts;
+            }
+
+            /**
+             * Rekurzivní parser pro pod-vzorce obsahující závorky a násobky
+             */
+            static parseSubFormula(subFormula) {
+                const counts = {};
+                // Regulační výraz pro nalezení závorek, prvků nebo neplatných znaků
+                const regex = /([A-Z][a-z]*)(\d*)|(\()|(\))(\d*)/g;
+                const stack = [{}];
+                let match;
+
+                let lastIndex = 0;
+                while ((match = regex.exec(subFormula)) !== null) {
+                    if (match.index !== lastIndex) {
+                        throw new Error(`Neplatný nebo nerozpoznaný symbol ve vzorci na pozici ${lastIndex + 1}.`);
+                    }
+                    lastIndex = regex.lastIndex;
+
+                    const [_, element, countStr, openParen, closeParen, parenCountStr] = match;
+
+                    if (element) {
+                        // Nalezen prvek (např. Fe, Cl, H)
+                        if (!ELEMENTS[element]) {
+                            throw new Error(`Neznámý chemický prvek: "${element}".`);
+                        }
+                        const count = countStr ? parseInt(countStr, 10) : 1;
+                        const currentLevel = stack[stack.length - 1];
+                        currentLevel[element] = (currentLevel[element] || 0) + count;
+                    } else if (openParen) {
+                        // Otevírací závorka -> vytvoření nové úrovně v zásobníku
+                        stack.push({});
+                    } else if (closeParen) {
+                        // Zavírací závorka -> vynásobení a sloučení s předchozí úrovní
+                        if (stack.length <= 1) {
+                            throw new Error("Nesprávný počet závorek (přebývá zavírací závorka).");
+                        }
+                        const multiplier = parenCountStr ? parseInt(parenCountStr, 10) : 1;
+                        const top = stack.pop();
+                        const currentLevel = stack[stack.length - 1];
+
+                        for (const [elem, count] of Object.entries(top)) {
+                            currentLevel[elem] = (currentLevel[elem] || 0) + (count * multiplier);
+                        }
+                    }
+                }
+
+                if (lastIndex !== subFormula.length) {
+                    throw new Error("Vzorec obsahuje neplatné znaky nebo chybnou syntaxi.");
+                }
+
+                if (stack.length !== 1) {
+                    throw new Error("Chybějící zavírací závorka ve vzorci.");
+                }
+
+                return stack[0];
+            }
+        }
+
+        // Globální proměnná pro instanci Chart.js
+        let chartInstance = null;
+
+        /**
+         * Pomocná funkce pro nastavení příkladu do vstupu
+         */
+        function setFormula(formulaStr) {
+            document.getElementById('formula-input').value = formulaStr;
+            calculateMolarMass();
+        }
+
+        /**
+         * Hlavní obslužná funkce výpočtu
+         */
+        function calculateMolarMass(event) {
+            if (event) event.preventDefault();
+
+            const inputEl = document.getElementById('formula-input');
+            const errorEl = document.getElementById('error-message');
+            const resultsEl = document.getElementById('results-container');
+            const formula = inputEl.value.trim();
+
+            // Skrytí předchozích chyb a výsledků
+            errorEl.classList.add('hidden');
+            errorEl.innerText = '';
+            
+            try {
+                const elementCounts = ChemicalParser.parse(formula);
+                
+                // Kontrola zda byly nalezeny nějaké prvky
+                if (Object.keys(elementCounts).length === 0) {
+                    throw new Error("Zadaný vzorec neobsahuje žádné platné prvky.");
+                }
+
+                // Výpočet celkové hmotnosti a příprava dat pro tabulku
+                let totalMass = 0;
+                const details = [];
+
+                for (const [symbol, count] of Object.entries(elementCounts)) {
+                    const elemInfo = ELEMENTS[symbol];
+                    const elemMassTotal = elemInfo.mass * count;
+                    totalMass += elemMassTotal;
+
+                    details.push({
+                        symbol: symbol,
+                        name: elemInfo.name,
+                        count: count,
+                        singleMass: elemInfo.mass,
+                        totalMass: elemMassTotal
+                    });
+                }
+
+                // Výpočet procentuálního zastoupení
+                details.forEach(d => {
+                    d.percentage = (d.totalMass / totalMass) * 100;
+                });
+
+                // Řazení podle hmotnostního procenta (sestupně)
+                details.sort((a, b) => b.percentage - a.percentage);
+
+                // Zobrazení výsledků v UI
+                renderResults(formula, totalMass, details);
+
+            } catch (err) {
+                resultsEl.classList.add('hidden');
+                errorEl.innerText = err.message;
+                errorEl.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Vykreslení výsledků do HTML a aktualizace grafu
+         */
+        function renderResults(formula, totalMass, details) {
+            document.getElementById('total-mass-display').innerText = `${totalMass.toFixed(3)} g/mol`;
+            document.getElementById('formatted-formula').innerText = `Vzorec: ${formula}`;
+            document.getElementById('element-count-badge').innerText = `${details.length} ${details.length === 1 ? 'prvek' : details.length < 5 ? 'prvky' : 'prvků'}`;
+
+            // Vykreslení tabulky
+            const tbody = document.getElementById('elements-table-body');
+            tbody.innerHTML = '';
+
+            const chartLabels = [];
+            const chartData = [];
+            const chartColors = [
+                '#3B82F6', '#10B981', '#F59E0B', '#EF4444', 
+                '#8B5CF6', '#EC4899', '#6366F1', '#14B8A6'
+            ];
+
+            details.forEach((item, index) => {
+                const color = chartColors[index % chartColors.length];
+                chartLabels.push(`${item.symbol} (${item.name})`);
+                chartData.push(item.percentage.toFixed(2));
+
+                const row = document.createElement('tr');
+                row.className = "hover:bg-slate-50/80 transition-colors";
+                row.innerHTML = `
+                    <td class="py-3 px-4 font-medium flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full inline-block" style="background-color: ${color}"></span>
+                        <span class="font-bold text-slate-900">${item.symbol}</span>
+                        <span class="text-slate-500 text-xs font-normal">(${item.name})</span>
+                    </td>
+                    <td class="py-3 px-4 text-center font-mono">${item.count}</td>
+                    <td class="py-3 px-4 text-right font-mono">${item.totalMass.toFixed(3)} g/mol</td>
+                    <td class="py-3 px-4 text-right font-mono font-semibold">${item.percentage.toFixed(2)} %</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('results-container').classList.remove('hidden');
+
+            // Aktualizace Donut grafu
+            renderChart(chartLabels, chartData, chartColors);
+        }
+
+        /**
+         * Vykreslení koláčového/donut grafu pomocí Chart.js
+         */
+        function renderChart(labels, data, colors) {
+            const ctx = document.getElementById('composition-chart').getContext('2d');
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false // Legenda je přímo v přehledné tabulce
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.label}: ${context.raw} %`;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        // Automatický výpočet výchozího vzorce při načtení
+        window.onload = function() {
+            calculateMolarMass();
+        };
+    </script>
+</body>
+</html>
